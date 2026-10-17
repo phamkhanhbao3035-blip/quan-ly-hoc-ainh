@@ -1,0 +1,1293 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quản lý học sinh theo tổ</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f1f5f9;color:#1e293b}
+header{background:#173b70;color:white;padding:22px}
+header h1{margin:0 0 8px;font-size:25px}
+nav{display:flex;flex-wrap:wrap;gap:8px;padding:12px;background:white}
+button{padding:10px 14px;border:0;border-radius:7px;background:#2563eb;color:white;cursor:pointer}
+button:disabled{opacity:.5;cursor:not-allowed}
+nav button{background:#e2e8f0;color:#173b70}
+nav button.active{background:#173b70;color:white}
+main{max-width:1200px;margin:auto;padding:16px}
+section{display:none}
+section.active{display:block}
+.panel,.card{background:white;padding:16px;border-radius:10px;margin-bottom:14px;border:1px solid #e2e8f0}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px}
+.card small{color:#64748b}
+.card strong{display:block;font-size:28px;margin-top:10px}
+form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:end}
+label{font-size:14px;font-weight:bold}
+input,select,textarea{display:block;width:100%;padding:10px;margin-top:6px;border:1px solid #cbd5e1;border-radius:7px;font:inherit;background:white}
+h2{font-size:20px;margin-top:0}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th,td{padding:10px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-align:top}
+th{background:#f8fafc}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.secondary{background:#64748b}
+.danger{background:#dc2626}
+.muted{font-size:13px;color:#64748b;line-height:1.5}
+.bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.empty{text-align:center;color:#64748b;padding:18px}
+[hidden]{display:none!important}
+#loginBox{position:fixed;inset:0;z-index:9999;background:#173b70;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-card{background:white;padding:25px;border-radius:15px;width:100%;max-width:390px}
+.login-card h2{text-align:center;color:#173b70}
+.code-row{display:flex;gap:6px;align-items:center}
+.code-row input{flex:1;min-width:0}
+.error{color:#dc2626;font-size:13px}
+#sessionBar{display:flex;justify-content:flex-end;align-items:center;gap:10px;padding:8px 16px;background:#e2e8f0}
+@media(max-width:600px){main{padding:9px}header h1{font-size:21px}}
+@media print{nav,button,#sessionBar{display:none!important}section{display:none!important}section.active{display:block!important}}
+</style>
+</head>
+<body>
+
+<div id="loginBox">
+  <div class="login-card">
+    <h2>Đăng nhập hệ thống</h2>
+    <p class="muted">Người xem không cần mã. Ban cán sự và quản trị viên cần mã tương ứng.</p>
+    <label>Vai trò
+      <select id="loginRole">
+        <option value="viewer">Người xem</option>
+        <option value="bcs">Ban cán sự</option>
+        <option value="admin">Quản trị viên (Admin)</option>
+      </select>
+    </label>
+    <label style="display:block;margin-top:14px">Mã đăng nhập
+      <div class="code-row">
+        <input id="loginCode" type="password" placeholder="Người xem không cần nhập mã">
+        <button type="button" id="toggleCode" class="secondary">👁</button>
+      </div>
+    </label>
+    <button type="button" id="loginBtn" style="width:100%;margin-top:16px">Đăng nhập</button>
+    <p id="loginError" class="error"></p>
+    <p class="muted"></p>
+  </div>
+</div>
+
+<header id="siteHeader" hidden>
+  <h1>HỆ THỐNG QUẢN LÝ HỌC SINH 11A6</h1>
+  <p id="classSubtitle">Quản lý sĩ số · Vắng học · Vi phạm · Thống kê theo tổ</p>
+</header>
+
+<div id="sessionBar" hidden>
+  <span id="roleLabel"></span>
+  <button type="button" id="logoutBtn" class="secondary">Đăng xuất</button>
+</div>
+
+<nav id="siteNav" hidden>
+  <button class="active" data-page="home">Tổng quan</button>
+  <button data-page="students">Học sinh & tổ</button>
+  <button data-page="attendance">Học sinh vắng</button>
+  <button data-page="violations">Lỗi vi phạm</button>
+  <button data-page="stats">Thống kê tổ</button>
+  <button data-page="history">Lịch sử chỉnh sửa</button>
+  <button data-page="backup">Sao lưu</button>
+</nav>
+
+<main id="siteMain" hidden>
+
+<section id="home" class="active">
+  <div class="panel">
+    <div class="bar">
+      <h2>Tổng quan lớp</h2>
+      <label>Ngày thống kê<input id="dashDate" type="date"></label>
+    </div>
+    <div class="cards">
+      <div class="card"><small>Sĩ số lớp</small><strong id="totalStudents">0</strong></div>
+      <div class="card"><small>Học sinh vắng</small><strong id="totalAbsent">0</strong></div>
+      <div class="card"><small>Học sinh vi phạm</small><strong id="totalBadStudents">0</strong></div>
+      <div class="card"><small>Lượt vi phạm</small><strong id="totalBad">0</strong></div>
+      <div class="card"><small>Học sinh có mặt</small><strong id="totalPresent">0</strong></div>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Tổng hợp theo tổ trong ngày</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Tổ</th><th>Sĩ số</th><th>Vắng</th><th>Có mặt</th><th>HS vi phạm</th><th>Lượt lỗi</th><th>Điểm trừ</th></tr></thead>
+        <tbody id="homeRows"></tbody>
+      </table>
+    </div>
+  </div>
+  <p class="muted">Dữ liệu hiện lưu trên trình duyệt của máy tính hiện tại, chưa tự đồng bộ qua máy khác.</p>
+</section>
+
+<section id="students">
+  <div class="panel" id="settingsPanel">
+    <h2>Thiết lập lớp</h2>
+    <form id="settingsForm">
+      <label>Tên lớp<input id="className" placeholder="Ví dụ: 11A6"></label>
+      <label>Số tổ
+        <select id="teamCount">
+          <option value="1">1 tổ</option><option value="2">2 tổ</option>
+          <option value="3">3 tổ</option><option value="4" selected>4 tổ</option>
+          <option value="5">5 tổ</option><option value="6">6 tổ</option>
+          <option value="7">7 tổ</option><option value="8">8 tổ</option>
+        </select>
+      </label>
+      <button>Lưu thiết lập</button>
+    </form>
+  </div>
+
+  <div class="panel" id="studentEntryPanel">
+    <h2>Thêm học sinh</h2>
+    <form id="studentForm">
+      <label>Họ và tên<input id="studentName" required></label>
+      <label>Mã học sinh<input id="studentCode"></label>
+      <label>Tổ<select id="studentTeam"></select></label>
+      <button>Thêm học sinh</button>
+    </form>
+    <div class="actions"><button type="button" class="secondary" id="showBulk">Nhập nhiều học sinh</button></div>
+    <div id="bulkBox" hidden>
+      <p class="muted">Mỗi dòng một học sinh. Ví dụ: Nguyễn Văn A, 1</p>
+      <textarea id="bulkText" rows="6" placeholder="Nguyễn Văn A, 1&#10;Trần Thị B, 2&#10;Lê Văn C"></textarea>
+      <button type="button" id="bulkAdd">Thêm danh sách</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Danh sách học sinh</h2>
+    <input id="searchStudent" placeholder="Tìm học sinh..." style="max-width:400px">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>STT</th><th>Mã</th><th>Họ tên</th><th>Tổ</th><th>Lượt lỗi</th><th>Buổi vắng</th><th>Thao tác</th></tr></thead>
+        <tbody id="studentRows"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="attendance">
+  <div class="panel" id="attendanceEntryPanel">
+    <h2>Ghi nhận học sinh vắng</h2>
+    <form id="attendanceForm">
+      <label>Ngày<input id="absenceDate" type="date" required></label>
+      <label>Học sinh<select id="absenceStudent" required></select></label>
+      <label>Buổi nghỉ
+        <select id="absenceSession" required>
+          <option value="Buổi sáng">Buổi sáng</option>
+          <option value="Buổi chiều">Buổi chiều</option>
+          <option value="Cả ngày">Cả ngày</option>
+        </select>
+      </label>
+      <label>Tình trạng
+        <select id="absenceType">
+          <option>Không phép</option><option>Có phép</option><option>Đi muộn</option><option>Về sớm</option>
+        </select>
+      </label>
+      <label>Số buổi<input id="absenceCount" type="number" min="0.5" step="0.5" value="1" required></label>
+      <label>Lý do<input id="absenceReason"></label>
+      <button>Ghi nhận</button>
+    </form>
+  </div>
+  <div class="panel">
+    <div class="bar"><h2>Lịch sử vắng học</h2><label>Lọc ngày<input id="filterAbsenceDate" type="date"></label></div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th id="absenceIdHead" hidden>ID bản ghi</th>
+          <th>Ngày</th><th>Học sinh</th><th>Tổ</th><th>Buổi nghỉ</th><th>Số buổi</th><th>Tình trạng</th><th>Lý do</th><th>Thao tác</th>
+        </tr></thead>
+        <tbody id="absenceRows"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="violations">
+  <div class="panel" id="violationEntryPanel">
+    <h2>Ghi lỗi vi phạm</h2>
+    <form id="violationForm">
+      <label>Ngày<input id="violationDate" type="date" required></label>
+      <label>Học sinh<select id="violationStudent" required></select></label>
+      <label>Lỗi vi phạm<input id="violationName" required placeholder="Ví dụ: Đi học muộn"></label>
+      <label>Điểm trừ<input id="violationPoints" type="number" min="0" step="0.5" value="1" required></label>
+      <label>Ghi chú<input id="violationNote"></label>
+      <button>Lưu vi phạm</button>
+    </form>
+  </div>
+  <div class="panel">
+    <div class="bar"><h2>Lịch sử vi phạm</h2><label>Lọc ngày<input id="filterViolationDate" type="date"></label></div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th id="violationIdHead" hidden>ID bản ghi</th>
+          <th>Ngày</th><th>Học sinh</th><th>Tổ</th><th>Lỗi chi tiết</th><th>Điểm trừ</th><th>Ghi chú</th><th>Thao tác</th>
+        </tr></thead>
+        <tbody id="violationRows"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="stats">
+  <div class="panel">
+    <div class="bar"><h2>Thống kê và xếp hạng tổ</h2><label>Ngày thống kê<input id="statsDate" type="date"></label></div>
+    <p class="muted">Điểm trừ thấp hơn được xếp trên.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Hạng</th><th>Tổ</th><th>Sĩ số</th><th>Vắng</th><th>HS vi phạm</th><th>Lượt lỗi</th><th>Điểm trừ</th><th>Tổng buổi nghỉ</th></tr></thead>
+        <tbody id="statsRows"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Danh sách học sinh theo tổ</h2>
+    <label style="max-width:240px">Chọn tổ<select id="detailTeam"></select></label>
+    <div id="teamDetail"></div>
+  </div>
+</section>
+
+<section id="history">
+  <div class="panel">
+    <div class="bar"><h2>Lịch sử chỉnh sửa</h2><label>Lọc ngày<input id="filterHistoryDate" type="date"></label></div>
+    <p class="muted">Nhật ký ghi nhận thao tác thêm, sửa, xóa và khôi phục dữ liệu trên trình duyệt hiện tại.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Thời gian</th><th>Người thực hiện</th><th>Thao tác</th><th>Nội dung</th></tr></thead>
+        <tbody id="historyRows"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="backup">
+  <div class="panel">
+    <h2>Sao lưu và báo cáo</h2>
+    <div class="actions">
+      <button id="exportJson">Tải bản sao lưu JSON</button>
+      <button id="importButton" class="secondary">Khôi phục JSON</button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+      <button id="exportCsv" class="secondary">Xuất CSV</button>
+      <button id="printButton" class="secondary">In trang hiện tại</button>
+    </div>
+    <p class="muted">Khôi phục sẽ thay thế dữ liệu hiện tại. Bản sao lưu JSON bao gồm cả lịch sử chỉnh sửa.</p>
+  </div>
+  <div class="panel">
+    <h2>Xóa dữ liệu</h2>
+    <button id="clearAll" class="danger">Xóa toàn bộ dữ liệu</button>
+  </div>
+</section>
+
+</main>
+
+<script>
+'use strict';
+
+const $ = id => document.getElementById(id);
+
+const today = () => {
+  const d = new Date();
+  return d.getFullYear() + '-' +
+    String(d.getMonth()+1).padStart(2,'0') + '-' +
+    String(d.getDate()).padStart(2,'0');
+};
+
+const fresh = () => ({
+  settings:{className:'',teamCount:4},
+  students:[],
+  absences:[],
+  violations:[],
+  history:[]
+});
+
+function uid(){
+  return Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+}
+
+function esc(s){
+  return String(s??'').replace(/[&<>"']/g,c=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+let db;
+
+try{
+  const x=JSON.parse(localStorage.getItem('qlhs_final')||'{}');
+  db={
+    ...fresh(),
+    ...x,
+    settings:{...fresh().settings,...(x.settings||{})},
+    students:Array.isArray(x.students)?x.students:[],
+    absences:Array.isArray(x.absences)?x.absences:[],
+    violations:Array.isArray(x.violations)?x.violations:[],
+    history:Array.isArray(x.history)?x.history:[]
+  };
+}catch(e){
+  db=fresh();
+}
+
+let currentRole=null;
+
+const DEMO_CODES={
+  viewer:'',
+  bcs:'CANBO123',
+  admin:'ADMIN123'
+};
+
+function roleName(role){
+  return ({
+    viewer:'Người xem',
+    bcs:'Ban cán sự',
+    admin:'Quản trị viên'
+  })[role]||'Không xác định';
+}
+
+function canEdit(){
+  return currentRole==='bcs'||currentRole==='admin';
+}
+
+function isAdmin(){
+  return currentRole==='admin';
+}
+
+function logHistory(action,detail){
+  if(!Array.isArray(db.history))db.history=[];
+
+  db.history.unshift({
+    id:uid(),
+    time:new Date().toISOString(),
+    role:roleName(currentRole),
+    action:String(action),
+    detail:String(detail)
+  });
+
+  if(db.history.length>3000)db.history=db.history.slice(0,3000);
+}
+
+function save(action,detail){
+  if(action)logHistory(action,detail||'');
+
+  try{
+    localStorage.setItem('qlhs_final',JSON.stringify(db));
+  }catch(e){
+    alert('Không thể lưu dữ liệu. Bộ nhớ trình duyệt có thể đã đầy.');
+    return false;
+  }
+
+  render();
+  return true;
+}
+
+function teams(){
+  let n=Number(db.settings.teamCount);
+  if(!Number.isFinite(n)||n<1)n=4;
+  n=Math.min(8,Math.floor(n));
+  return Array.from({length:n},(_,i)=>i+1);
+}
+
+function getStudent(id){
+  return db.students.find(s=>s.id===id);
+}
+
+function nameOf(id){
+  return getStudent(id)?.name||'Học sinh đã xóa';
+}
+
+function teamOf(id){
+  return getStudent(id)?.team||'-';
+}
+
+function sum(a,key){
+  return a.reduce((n,x)=>n+Number(x[key]||0),0);
+}
+
+function fillTeams(id){
+  const e=$(id);
+  const old=e.value;
+  e.innerHTML=teams().map(t=>`<option value="${t}">Tổ ${t}</option>`).join('');
+  if([...e.options].some(o=>o.value===old))e.value=old;
+}
+
+function fillStudents(id){
+  const e=$(id);
+  const old=e.value;
+  e.innerHTML=db.students.map(s=>
+    `<option value="${esc(s.id)}">${esc(s.name)} — Tổ ${esc(s.team)}</option>`
+  ).join('')||'<option value="">Chưa có học sinh</option>';
+  if([...e.options].some(o=>o.value===old))e.value=old;
+}
+
+function absentStudents(date,team){
+  return new Set(db.absences.filter(a=>
+    a.date===date&&(!team||Number(teamOf(a.sid))===Number(team))
+  ).map(a=>a.sid)).size;
+}
+
+function dayViolations(date,team){
+  return db.violations.filter(v=>
+    v.date===date&&(!team||Number(teamOf(v.sid))===Number(team))
+  );
+}
+
+function uniqueViolators(date,team){
+  return new Set(dayViolations(date,team).map(v=>v.sid)).size;
+}
+
+function teamStats(t,date){
+  const ss=db.students.filter(s=>Number(s.team)===Number(t));
+  const ids=ss.map(s=>s.id);
+  const v=dayViolations(date,t);
+  const a=db.absences.filter(x=>ids.includes(x.sid));
+  const abs=absentStudents(date,t);
+
+  return {
+    t,n:ss.length,abs,
+    present:Math.max(0,ss.length-abs),
+    bad:uniqueViolators(date,t),
+    count:v.length,
+    points:sum(v,'points'),
+    allAbs:sum(a,'count')
+  };
+}
+
+function renderHistory(){
+  const body=$('historyRows');
+  if(!body)return;
+
+  const filter=$('filterHistoryDate').value;
+  const rows=(db.history||[]).filter(item=>
+    !filter||String(item.time||'').slice(0,10)===filter
+  );
+
+  body.innerHTML=rows.map(item=>{
+    let time='Không rõ';
+    try{time=new Date(item.time).toLocaleString('vi-VN');}catch(e){}
+
+    return `<tr>
+      <td>${esc(time)}</td>
+      <td>${esc(item.role||'Không xác định')}</td>
+      <td>${esc(item.action||'')}</td>
+      <td>${esc(item.detail||'')}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="4" class="empty">Chưa có lịch sử chỉnh sửa.</td></tr>';
+}
+
+function renderDetail(){
+  const t=Number($('detailTeam').value||1);
+  const date=$('statsDate').value||today();
+  const ss=db.students.filter(s=>Number(s.team)===t);
+
+  $('teamDetail').innerHTML=ss.length
+    ? '<div class="tablewrap"><table><thead><tr><th>Học sinh</th><th>Lượt lỗi trong ngày</th><th>Điểm trừ</th><th>Tổng buổi vắng</th></tr></thead><tbody>'+
+      ss.map(s=>{
+        const v=db.violations.filter(x=>x.sid===s.id&&x.date===date);
+        return `<tr>
+          <td>${esc(s.name)}</td>
+          <td>${v.length}</td>
+          <td>${sum(v,'points')}</td>
+          <td>${sum(db.absences.filter(a=>a.sid===s.id),'count')}</td>
+        </tr>`;
+      }).join('')+
+      '</tbody></table></div>'
+    :'<p class="empty">Tổ này chưa có học sinh.</p>';
+}
+
+function render(){
+  $('className').value=db.settings.className||'';
+  $('teamCount').value=db.settings.teamCount||4;
+  $('classSubtitle').textContent=
+    (db.settings.className?'Lớp '+db.settings.className+' · ':'')+
+    'Quản lý sĩ số · Vắng học · Vi phạm · Thống kê theo tổ';
+
+  fillTeams('studentTeam');
+  fillTeams('detailTeam');
+  fillStudents('absenceStudent');
+  fillStudents('violationStudent');
+
+  // Chỉ Admin mới nhìn thấy cột ID bản ghi.
+  $('absenceIdHead').hidden=!isAdmin();
+  $('violationIdHead').hidden=!isAdmin();
+
+  const date=$('dashDate').value||today();
+  $('dashDate').value=date;
+
+  $('totalStudents').textContent=db.students.length;
+  $('totalAbsent').textContent=absentStudents(date);
+  $('totalBadStudents').textContent=uniqueViolators(date);
+  $('totalBad').textContent=dayViolations(date).length;
+  $('totalPresent').textContent=Math.max(0,db.students.length-absentStudents(date));
+
+  $('homeRows').innerHTML=teams().map(t=>{
+    const x=teamStats(t,date);
+    return `<tr>
+      <td>Tổ ${t}</td><td>${x.n}</td><td>${x.abs}</td>
+      <td>${x.present}</td><td>${x.bad}</td>
+      <td>${x.count}</td><td>${x.points}</td>
+    </tr>`;
+  }).join('');
+
+  const q=$('searchStudent').value.toLocaleLowerCase('vi');
+  const ss=db.students.filter(s=>
+    (s.name+' '+(s.code||'')).toLocaleLowerCase('vi').includes(q)
+  );
+
+  $('studentRows').innerHTML=ss.map((s,i)=>`<tr>
+    <td>${i+1}</td>
+    <td>${esc(s.code||'—')}</td>
+    <td>${esc(s.name)}</td>
+    <td><select data-move="${esc(s.id)}" ${canEdit()?'':'disabled'}>
+      ${teams().map(t=>`<option value="${t}" ${Number(s.team)===t?'selected':''}>Tổ ${t}</option>`).join('')}
+    </select></td>
+    <td>${db.violations.filter(v=>v.sid===s.id).length}</td>
+    <td>${sum(db.absences.filter(a=>a.sid===s.id),'count')}</td>
+    <td>${canEdit()?`<button type="button" class="secondary" data-edit="${esc(s.id)}">Sửa</button>`:'Chỉ xem'}
+    ${isAdmin()?` <button type="button" class="danger" data-delstudent="${esc(s.id)}">Xóa</button>`:''}</td>
+  </tr>`).join('')||'<tr><td colspan="7" class="empty">Chưa có học sinh.</td></tr>';
+
+  const af=$('filterAbsenceDate').value;
+  const aa=db.absences.filter(a=>!af||a.date===af)
+    .slice().sort((a,b)=>b.date.localeCompare(a.date));
+
+  $('absenceRows').innerHTML=aa.map(a=>`<tr>
+    ${isAdmin()?`<td>${esc(a.id)}</td>`:''}
+    <td>${esc(a.date)}</td>
+    <td>${esc(nameOf(a.sid))}</td>
+    <td>Tổ ${esc(teamOf(a.sid))}</td>
+    <td>${esc(a.session||'—')}</td>
+    <td>${Number(a.count)||0}</td>
+    <td>${esc(a.type)}</td>
+    <td>${esc(a.reason||'—')}</td>
+    <td>
+      ${canEdit()?`<button type="button" class="secondary" data-edita="${esc(a.id)}">Sửa</button>`:'Chỉ xem'}
+      ${isAdmin()?` <button type="button" class="danger" data-dela="${esc(a.id)}">Xóa</button>`:''}
+    </td>
+  </tr>`).join('')||`<tr><td colspan="${isAdmin()?9:8}" class="empty">Không có bản ghi.</td></tr>`;
+
+  const vf=$('filterViolationDate').value;
+  const vv=db.violations.filter(v=>!vf||v.date===vf)
+    .slice().sort((a,b)=>b.date.localeCompare(a.date));
+
+  $('violationRows').innerHTML=vv.map(v=>`<tr>
+    ${isAdmin()?`<td>${esc(v.id)}</td>`:''}
+    <td>${esc(v.date)}</td>
+    <td>${esc(nameOf(v.sid))}</td>
+    <td>Tổ ${esc(teamOf(v.sid))}</td>
+    <td>${esc(v.name)}</td>
+    <td>${Number(v.points)||0}</td>
+    <td>${esc(v.note||'—')}</td>
+    <td>
+      ${canEdit()?`<button type="button" class="secondary" data-editv="${esc(v.id)}">Sửa</button>`:'Chỉ xem'}
+      ${isAdmin()?` <button type="button" class="danger" data-delv="${esc(v.id)}">Xóa</button>`:''}
+    </td>
+  </tr>`).join('')||`<tr><td colspan="${isAdmin()?8:7}" class="empty">Không có bản ghi.</td></tr>`;
+
+  const sd=$('statsDate').value||date;
+  $('statsDate').value=sd;
+
+  $('statsRows').innerHTML=teams()
+    .map(t=>teamStats(t,sd))
+    .sort((a,b)=>a.points-b.points||a.t-b.t)
+    .map((x,i)=>`<tr>
+      <td>${i+1}</td><td>Tổ ${x.t}</td><td>${x.n}</td>
+      <td>${x.abs}</td><td>${x.bad}</td><td>${x.count}</td>
+      <td>${x.points}</td><td>${x.allAbs}</td>
+    </tr>`).join('');
+
+  renderDetail();
+  renderHistory();
+}
+
+function showPage(page){
+  // Chặn điều hướng đến mục không được phép.
+  if(page==='history'&&currentRole==='viewer')page='home';
+  if(page==='backup'&&!isAdmin())page='home';
+
+  document.querySelectorAll('nav button').forEach(b=>
+    b.classList.toggle('active',b.dataset.page===page)
+  );
+  document.querySelectorAll('main section').forEach(s=>
+    s.classList.toggle('active',s.id===page)
+  );
+}
+
+document.querySelectorAll('nav button').forEach(b=>{
+  b.onclick=()=>showPage(b.dataset.page);
+});
+
+$('toggleCode').onclick=()=>{
+  const i=$('loginCode');
+  i.type=i.type==='password'?'text':'password';
+  $('toggleCode').textContent=i.type==='password'?'👁':'🙈';
+};
+
+function applyPermissions(){
+  $('loginBox').hidden=true;
+  $('siteHeader').hidden=false;
+  $('siteNav').hidden=false;
+  $('siteMain').hidden=false;
+  $('sessionBar').hidden=false;
+
+  $('roleLabel').textContent='Đang đăng nhập: '+roleName(currentRole);
+
+  $('settingsPanel').hidden=!isAdmin();
+  $('studentEntryPanel').hidden=!canEdit();
+  $('attendanceEntryPanel').hidden=!canEdit();
+  $('violationEntryPanel').hidden=!canEdit();
+  $('showBulk').hidden=!canEdit();
+  $('bulkBox').hidden=true;
+
+  $('clearAll').hidden=!isAdmin();
+  $('importButton').hidden=!isAdmin();
+  $('exportJson').hidden=!isAdmin();
+  $('exportCsv').hidden=!isAdmin();
+
+  // Ẩn cả nút điều hướng và nội dung lịch sử đối với người xem.
+  $('history').hidden=currentRole==='viewer';
+
+  document.querySelectorAll('nav button').forEach(b=>{
+    b.hidden=
+      (b.dataset.page==='backup'&&!isAdmin())||
+      (b.dataset.page==='history'&&currentRole==='viewer');
+  });
+
+  render();
+  showPage('home');
+}
+
+$('loginBtn').onclick=()=>{
+  const role=$('loginRole').value;
+  const code=$('loginCode').value;
+
+  if(role==='viewer'){
+    currentRole='viewer';
+  }else if(code!==DEMO_CODES[role]){
+    $('loginError').textContent='Mã đăng nhập không đúng.';
+    return;
+  }else{
+    currentRole=role;
+  }
+
+  $('loginError').textContent='';
+  applyPermissions();
+};
+
+$('loginRole').onchange=()=>{
+  $('loginCode').placeholder=$('loginRole').value==='viewer'
+    ?' không cần nhập mã'
+    :'Nhập mã đăng nhập';
+};
+
+$('loginCode').addEventListener('keydown',e=>{
+  if(e.key==='Enter')$('loginBtn').click();
+});
+
+$('logoutBtn').onclick=()=>{
+  currentRole=null;
+  $('loginCode').value='';
+  $('loginBox').hidden=false;
+  $('siteHeader').hidden=true;
+  $('siteNav').hidden=true;
+  $('siteMain').hidden=true;
+  $('sessionBar').hidden=true;
+  $('loginError').textContent='';
+};
+
+$('settingsForm').onsubmit=e=>{
+  e.preventDefault();
+  if(!isAdmin())return;
+
+  const n=Number($('teamCount').value);
+  const oldName=db.settings.className||'';
+  const oldCount=Number(db.settings.teamCount)||4;
+  const newName=$('className').value.trim();
+
+  if(db.students.some(s=>Number(s.team)>n)&&
+    !confirm('Một số học sinh thuộc tổ sẽ chuyển về tổ 1. Tiếp tục?'))return;
+
+  db.students.forEach(s=>{
+    if(Number(s.team)>n)s.team='1';
+  });
+
+  db.settings={className:newName,teamCount:n};
+  save('Thay đổi thiết lập lớp',
+    `Tên lớp: "${oldName}" → "${newName}"; số tổ: ${oldCount} → ${n}`);
+  alert('Đã lưu thiết lập lớp.');
+};
+
+$('studentForm').onsubmit=e=>{
+  e.preventDefault();
+  if(!canEdit())return;
+
+  const name=$('studentName').value.trim();
+  if(!name)return;
+
+  const student={
+    id:uid(),
+    name,
+    code:$('studentCode').value.trim(),
+    team:$('studentTeam').value
+  };
+
+  db.students.push(student);
+  e.target.reset();
+
+  save('Thêm học sinh',
+    `${student.name}; mã: ${student.code||'Không có'}; tổ ${student.team}`);
+};
+
+$('showBulk').onclick=()=>{
+  if(canEdit())$('bulkBox').hidden=!$('bulkBox').hidden;
+};
+
+$('bulkAdd').onclick=()=>{
+  if(!canEdit())return;
+
+  const lines=$('bulkText').value.split(/\r?\n/)
+    .map(x=>x.trim()).filter(Boolean);
+  const added=[];
+
+  lines.forEach((line,i)=>{
+    const p=line.split(',').map(x=>x.trim());
+    let t=Number(p[1]);
+
+    if(!teams().includes(t))t=teams()[i%teams().length];
+
+    if(p[0]){
+      db.students.push({id:uid(),name:p[0],code:'',team:String(t)});
+      added.push(`${p[0]} (tổ ${t})`);
+    }
+  });
+
+  if(added.length){
+    $('bulkText').value='';
+    save('Nhập nhiều học sinh',
+      `Đã thêm ${added.length} học sinh: ${added.join('; ')}`);
+    alert('Đã thêm '+added.length+' học sinh.');
+  }else{
+    alert('Không tìm thấy tên học sinh hợp lệ.');
+  }
+};
+
+$('attendanceForm').onsubmit=e=>{
+  e.preventDefault();
+  if(!canEdit())return;
+
+  const sid=$('absenceStudent').value;
+  if(!sid||!getStudent(sid)){
+    alert('Hãy thêm học sinh trước.');
+    return;
+  }
+
+  const date=$('absenceDate').value;
+  const count=Number($('absenceCount').value);
+
+  if(!validDate(date)||!Number.isFinite(count)||count<=0){
+    alert('Vui lòng kiểm tra ngày và số buổi nghỉ.');
+    return;
+  }
+
+  const type=$('absenceType').value;
+  const session=$('absenceSession').value;
+  const reason=$('absenceReason').value.trim();
+  const studentName=nameOf(sid);
+
+  if(db.absences.some(a=>a.sid===sid&&a.date===date)&&
+    !confirm('Học sinh này đã có bản ghi trong ngày. Vẫn thêm?'))return;
+
+  db.absences.push({id:uid(),sid,date,type,session,count,reason});
+  $('absenceReason').value='';
+
+  save('Ghi nhận học sinh vắng',
+    `${studentName}; ngày ${date}; ${session}; ${type}; ${count} buổi; lý do: ${reason||'Không ghi'}`);
+};
+
+$('violationForm').onsubmit=e=>{
+  e.preventDefault();
+  if(!canEdit())return;
+
+  const sid=$('violationStudent').value;
+  if(!sid||!getStudent(sid)){
+    alert('Hãy thêm học sinh trước.');
+    return;
+  }
+
+  const date=$('violationDate').value;
+  const name=$('violationName').value.trim();
+  const points=Number($('violationPoints').value);
+  const note=$('violationNote').value.trim();
+
+  if(!validDate(date)||!name||!Number.isFinite(points)||points<0){
+    alert('Vui lòng kiểm tra ngày, lỗi vi phạm và điểm trừ.');
+    return;
+  }
+
+  db.violations.push({id:uid(),sid,date,name,points,note});
+  $('violationName').value='';
+  $('violationNote').value='';
+  $('violationPoints').value=1;
+
+  save('Ghi lỗi vi phạm',
+    `${nameOf(sid)}; ngày ${date}; lỗi: ${name}; điểm trừ: ${points}; ghi chú: ${note||'Không có'}`);
+};
+
+$('searchStudent').oninput=render;
+
+[
+  'dashDate','filterAbsenceDate','filterViolationDate',
+  'statsDate','filterHistoryDate'
+].forEach(id=>$(id).onchange=render);
+
+$('detailTeam').onchange=renderDetail;
+
+document.addEventListener('change',e=>{
+  const sid=e.target.dataset.move;
+  if(!sid||!canEdit())return;
+
+  const s=getStudent(sid);
+  if(!s)return;
+
+  const oldTeam=s.team;
+  const newTeam=e.target.value;
+  if(String(oldTeam)===String(newTeam))return;
+
+  s.team=newTeam;
+  save('Chuyển tổ học sinh',
+    `${s.name}: tổ ${oldTeam} → tổ ${newTeam}`);
+});
+
+/*
+  Chọn học sinh theo HỌ TÊN, không cần nhớ số thứ tự.
+  Nếu trùng tên thì yêu cầu mã học sinh hoặc số tổ để phân biệt.
+*/
+function chooseStudent(currentSid){
+  if(!db.students.length){
+    alert('Chưa có học sinh trong danh sách.');
+    return null;
+  }
+
+  const current=getStudent(currentSid);
+  const answer=prompt(
+    'Nhập họ tên học sinh cần gắn bản ghi:',
+    current?current.name:''
+  );
+
+  if(answer===null)return null;
+
+  const name=answer.trim();
+  if(!name){
+    alert('Bạn chưa nhập họ tên học sinh.');
+    return null;
+  }
+
+  const normalized=name.toLocaleLowerCase('vi');
+  const matches=db.students.filter(s=>
+    String(s.name||'').trim().toLocaleLowerCase('vi')===normalized
+  );
+
+  if(matches.length===0){
+    alert('Không tìm thấy học sinh có tên "'+name+'". Bản ghi chưa thay đổi.');
+    return null;
+  }
+
+  if(matches.length===1)return matches[0];
+
+  // Nếu tên không đổi thì giữ nguyên học sinh của bản ghi đang sửa.
+  if(current&&String(current.name||'').trim().toLocaleLowerCase('vi')===normalized){
+    return current;
+  }
+
+  const code=prompt(
+    'Có nhiều học sinh trùng tên "'+name+'".\n'+
+    'Nhập mã học sinh để xác định đúng người:\n\n'+
+    matches.map(s=>`${s.name} — Tổ ${s.team} — Mã ${s.code||'Chưa có mã'}`).join('\n'),
+    ''
+  );
+
+  if(code===null)return null;
+
+  const enteredCode=code.trim();
+  if(enteredCode){
+    const byCode=matches.filter(s=>
+      String(s.code||'').trim().toLocaleLowerCase('vi')===
+      enteredCode.toLocaleLowerCase('vi')
+    );
+    if(byCode.length===1)return byCode[0];
+  }
+
+  const team=prompt(
+    'Chưa xác định được duy nhất bằng mã.\nNhập số tổ của học sinh:'
+  );
+
+  if(team===null)return null;
+
+  const teamNumber=team.trim().replace(/^tổ\s*/i,'');
+  const byTeam=matches.filter(s=>String(s.team)===teamNumber);
+
+  if(byTeam.length===1)return byTeam[0];
+
+  alert('Vẫn có nhiều học sinh phù hợp hoặc không tìm thấy học sinh. Bản ghi chưa thay đổi.');
+  return null;
+}
+
+function validDate(value){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
+
+  const d=new Date(value+'T00:00:00');
+  return !Number.isNaN(d.getTime())&&
+    d.getFullYear()===Number(value.slice(0,4))&&
+    d.getMonth()+1===Number(value.slice(5,7))&&
+    d.getDate()===Number(value.slice(8,10));
+}
+
+/*
+  Khi sửa, tìm bản ghi bằng ID rồi cập nhật đúng vị trí.
+  Không tạo bản ghi mới và không thay đổi các bản ghi khác.
+*/
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button');
+  if(!b)return;
+
+  /* SỬA THÔNG TIN HỌC SINH */
+  if(b.dataset.edit&&canEdit()){
+    const s=getStudent(b.dataset.edit);
+    if(!s)return;
+
+    const oldName=s.name;
+    const n=prompt('Sửa họ tên:',s.name);
+    if(n===null||!n.trim())return;
+
+    let newCode=s.code||'';
+
+    if(isAdmin()){
+      const c=prompt('Sửa mã học sinh:',newCode);
+      if(c===null)return;
+      newCode=c.trim();
+    }
+
+    s.name=n.trim();
+    s.code=newCode;
+
+    save('Sửa thông tin học sinh',
+      `Họ tên: "${oldName}" → "${s.name}"; mã: "${newCode}"`);
+    return;
+  }
+
+  /* SỬA BẢN GHI VẮNG HỌC */
+  if(b.dataset.edita&&canEdit()){
+    const index=db.absences.findIndex(a=>a.id===b.dataset.edita);
+    if(index<0){
+      alert('Không tìm thấy bản ghi vắng cần sửa.');
+      return;
+    }
+
+    const old={...db.absences[index]};
+    const updated={...old};
+
+    const date=prompt('Ngày nghỉ (YYYY-MM-DD):',old.date);
+    if(date===null)return;
+
+    if(!validDate(date.trim())){
+      alert('Ngày không hợp lệ. Hãy nhập dạng YYYY-MM-DD.');
+      return;
+    }
+
+    const selectedStudent=chooseStudent(old.sid);
+    if(!selectedStudent)return;
+
+    const session=prompt(
+      'Buổi nghỉ: Buổi sáng / Buổi chiều / Cả ngày',
+      old.session||'Buổi sáng'
+    );
+    if(session===null)return;
+
+    if(!['Buổi sáng','Buổi chiều','Cả ngày'].includes(session.trim())){
+      alert('Buổi nghỉ không hợp lệ. Bản ghi chưa thay đổi.');
+      return;
+    }
+
+    const type=prompt(
+      'Tình trạng: Không phép / Có phép / Đi muộn / Về sớm',
+      old.type||'Không phép'
+    );
+    if(type===null)return;
+
+    if(!['Không phép','Có phép','Đi muộn','Về sớm'].includes(type.trim())){
+      alert('Tình trạng không hợp lệ. Bản ghi chưa thay đổi.');
+      return;
+    }
+
+    const countText=prompt('Số buổi nghỉ:',String(old.count));
+    if(countText===null)return;
+
+    const count=Number(countText);
+    if(!Number.isFinite(count)||count<=0){
+      alert('Số buổi phải lớn hơn 0. Bản ghi chưa thay đổi.');
+      return;
+    }
+
+    const reason=prompt('Lý do nghỉ:',old.reason||'');
+    if(reason===null)return;
+
+    updated.date=date.trim();
+    updated.sid=selectedStudent.id;
+    updated.session=session.trim();
+    updated.type=type.trim();
+    updated.count=count;
+    updated.reason=reason.trim();
+
+    // Giữ nguyên ID và chỉ cập nhật đúng bản ghi đang sửa.
+    db.absences[index]=updated;
+
+    const ok=save(
+      'Sửa bản ghi vắng học',
+      `ID bản ghi: ${old.id}. `+
+      `Trước: ${old.date}; ${nameOf(old.sid)}; ${old.session||'Chưa ghi'}; ${old.type}; ${old.count} buổi; lý do: ${old.reason||'Không ghi'}. `+
+      `Sau: ${updated.date}; ${nameOf(updated.sid)}; ${updated.session}; ${updated.type}; ${updated.count} buổi; lý do: ${updated.reason||'Không ghi'}.`
+    );
+
+    if(ok)alert('Đã cập nhật bản ghi vắng. Không tạo thêm bản ghi mới.');
+    return;
+  }
+
+  /* SỬA LỖI VI PHẠM */
+  if(b.dataset.editv&&canEdit()){
+    const index=db.violations.findIndex(v=>v.id===b.dataset.editv);
+    if(index<0){
+      alert('Không tìm thấy lỗi vi phạm cần sửa.');
+      return;
+    }
+
+    const old={...db.violations[index]};
+    const updated={...old};
+
+    const date=prompt('Ngày vi phạm (YYYY-MM-DD):',old.date);
+    if(date===null)return;
+
+    if(!validDate(date.trim())){
+      alert('Ngày không hợp lệ. Hãy nhập dạng YYYY-MM-DD.');
+      return;
+    }
+
+    const selectedStudent=chooseStudent(old.sid);
+    if(!selectedStudent)return;
+
+    const name=prompt('Nội dung lỗi vi phạm:',old.name);
+    if(name===null)return;
+
+    if(!name.trim()){
+      alert('Nội dung lỗi không được để trống. Bản ghi chưa thay đổi.');
+      return;
+    }
+
+    const pointsText=prompt('Điểm trừ:',String(old.points));
+    if(pointsText===null)return;
+
+    const points=Number(pointsText);
+    if(!Number.isFinite(points)||points<0){
+      alert('Điểm trừ phải là số không âm. Bản ghi chưa thay đổi.');
+      return;
+    }
+
+    const note=prompt('Ghi chú:',old.note||'');
+    if(note===null)return;
+
+    updated.date=date.trim();
+    updated.sid=selectedStudent.id;
+    updated.name=name.trim();
+    updated.points=points;
+    updated.note=note.trim();
+
+    // Không dùng push() khi sửa: thay thế đúng bản ghi theo ID.
+    db.violations[index]=updated;
+
+    const ok=save(
+      'Sửa lỗi vi phạm',
+      `ID bản ghi: ${old.id}. `+
+      `Trước: ${old.date}; ${nameOf(old.sid)}; lỗi: ${old.name}; điểm trừ: ${old.points}; ghi chú: ${old.note||'Không có'}. `+
+      `Sau: ${updated.date}; ${nameOf(updated.sid)}; lỗi: ${updated.name}; điểm trừ: ${updated.points}; ghi chú: ${updated.note||'Không có'}.`
+    );
+
+    if(ok)alert('Đã cập nhật đúng lỗi vi phạm cũ. Không thêm lỗi mới.');
+    return;
+  }
+
+  /* XÓA HỌC SINH: CHỈ ADMIN */
+  if(b.dataset.delstudent&&isAdmin()){
+    const s=getStudent(b.dataset.delstudent);
+    if(!s)return;
+
+    if(confirm('Xóa học sinh và lịch sử vắng, vi phạm của em?')){
+      const detail=`${s.name}; xóa ${db.absences.filter(a=>a.sid===s.id).length} bản ghi vắng và ${db.violations.filter(v=>v.sid===s.id).length} bản ghi vi phạm`;
+
+      db.students=db.students.filter(x=>x.id!==s.id);
+      db.absences=db.absences.filter(x=>x.sid!==s.id);
+      db.violations=db.violations.filter(x=>x.sid!==s.id);
+
+      save('Xóa học sinh',detail);
+    }
+    return;
+  }
+
+  /* XÓA BẢN GHI VẮNG: CHỈ ADMIN */
+  if(b.dataset.dela&&isAdmin()){
+    const a=db.absences.find(x=>x.id===b.dataset.dela);
+    if(a&&confirm('Xóa bản ghi vắng này?')){
+      const detail=`${nameOf(a.sid)}; ngày ${a.date}; ${a.session||''}; ${a.type||''}`;
+      db.absences=db.absences.filter(x=>x.id!==b.dataset.dela);
+      save('Xóa bản ghi vắng',detail);
+    }
+    return;
+  }
+
+  /* XÓA LỖI VI PHẠM: CHỈ ADMIN */
+  if(b.dataset.delv&&isAdmin()){
+    const v=db.violations.find(x=>x.id===b.dataset.delv);
+    if(v&&confirm('Xóa lỗi vi phạm này?')){
+      const detail=`${nameOf(v.sid)}; ngày ${v.date}; lỗi: ${v.name}`;
+      db.violations=db.violations.filter(x=>x.id!==b.dataset.delv);
+      save('Xóa lỗi vi phạm',detail);
+    }
+  }
+});
+
+function download(name,data,type){
+  const u=URL.createObjectURL(new Blob([data],{type}));
+  const a=document.createElement('a');
+  a.href=u;
+  a.download=name;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(u),1000);
+}
+
+$('exportJson').onclick=()=>{
+  if(!isAdmin())return;
+
+  download(
+    'sao-luu-hoc-sinh.json',
+    JSON.stringify(db,null,2),
+    'application/json;charset=utf-8'
+  );
+};
+
+$('importButton').onclick=()=>{
+  if(isAdmin())$('importFile').click();
+};
+
+$('importFile').onchange=async e=>{
+  if(!isAdmin()){
+    e.target.value='';
+    return;
+  }
+
+  const f=e.target.files[0];
+  if(!f)return;
+
+  try{
+    const x=JSON.parse(await f.text());
+
+    if(!x.settings||
+      !Array.isArray(x.students)||
+      !Array.isArray(x.absences)||
+      !Array.isArray(x.violations)){
+      throw Error('Dữ liệu không hợp lệ');
+    }
+
+    if(!confirm('Khôi phục sẽ thay dữ liệu hiện tại. Tiếp tục?')){
+      e.target.value='';
+      return;
+    }
+
+    const oldHistory=Array.isArray(db.history)?db.history:[];
+    const importedHistory=Array.isArray(x.history)?x.history:[];
+
+    db={
+      ...fresh(),
+      ...x,
+      settings:{...fresh().settings,...x.settings},
+      students:x.students,
+      absences:x.absences,
+      violations:x.violations,
+      history:importedHistory
+    };
+
+    logHistory(
+      'Khôi phục dữ liệu',
+      `Khôi phục từ tệp ${f.name}; nhật ký cũ trên trình duyệt có ${oldHistory.length} bản ghi`
+    );
+
+    localStorage.setItem('qlhs_final',JSON.stringify(db));
+    render();
+    alert('Đã khôi phục dữ liệu.');
+  }catch(err){
+    alert('Tệp JSON không hợp lệ hoặc không thể lưu dữ liệu.');
+  }
+
+  e.target.value='';
+};
+
+$('exportCsv').onclick=()=>{
+  if(!isAdmin())return;
+
+  const rows=[[
+    'To','Ma hoc sinh','Ho ten','Luot vi pham',
+    'Diem tru','So buoi vang','So buoi vang khong phep'
+  ]];
+
+  db.students.forEach(s=>{
+    const v=db.violations.filter(x=>x.sid===s.id);
+    const a=db.absences.filter(x=>x.sid===s.id);
+
+    rows.push([
+      s.team,s.code,s.name,v.length,sum(v,'points'),
+      sum(a,'count'),
+      sum(a.filter(x=>x.type==='Không phép'),'count')
+    ]);
+  });
+
+  download(
+    'bao-cao-hoc-sinh.csv',
+    '\ufeff'+rows.map(r=>
+      r.map(x=>'"'+String(x??'').replace(/"/g,'""')+'"').join(',')
+    ).join('\r\n'),
+    'text/csv;charset=utf-8'
+  );
+};
+
+$('printButton').onclick=()=>window.print();
+
+$('clearAll').onclick=()=>{
+  if(!isAdmin())return;
+
+  if(confirm('Xóa toàn bộ dữ liệu học sinh, vắng và vi phạm? Lịch sử chỉnh sửa sẽ được giữ lại để ghi nhận thao tác này.')){
+    const oldStudents=db.students.length;
+    const oldAbsences=db.absences.length;
+    const oldViolations=db.violations.length;
+    const oldHistory=Array.isArray(db.history)?db.history:[];
+
+    db=fresh();
+    db.history=oldHistory;
+
+    logHistory(
+      'Xóa toàn bộ dữ liệu',
+      `Đã xóa ${oldStudents} học sinh, ${oldAbsences} bản ghi vắng và ${oldViolations} bản ghi vi phạm`
+    );
+
+    try{
+      localStorage.setItem('qlhs_final',JSON.stringify(db));
+      render();
+      alert('Đã xóa dữ liệu. Nhật ký chỉnh sửa vẫn được giữ lại.');
+    }catch(e){
+      alert('Không thể lưu thay đổi vào trình duyệt.');
+    }
+  }
+};
+
+/* Ngày mặc định */
+['dashDate','absenceDate','violationDate','statsDate']
+  .forEach(id=>$(id).value=today());
+
+render();
+</script>
+</body>
+</html>
